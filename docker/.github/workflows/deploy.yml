@@ -1,0 +1,38 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t devops-service -f Dockerfile .
+
+      - name: Test container startup
+        run: |
+          docker run -d --name test-app -p 8001:8000 devops-service
+          sleep 5
+          docker ps | grep test-app
+          curl -s http://localhost:8001/metrics | head -5
+          docker stop test-app && docker rm test-app
+
+  cd:
+    runs-on: self-hosted
+    needs: ci
+    steps:
+      - name: Deploy new version
+        run: |
+          cd ~/devops-lab-service
+          git pull origin main
+          docker compose down
+          docker compose up -d --build
+          sleep 3
+          curl -s http://localhost:8000 | head -1
